@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>宿舍电量监控</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="page-header">
+        <div>
+          <p class="eyebrow">BUAA POWER</p>
+          <h1>宿舍电量监控</h1>
+          <p class="subtitle">配置电表、预警阈值和每日检查时间</p>
+        </div>
+        <label class="switch">
+          <input id="enabled" type="checkbox" />
+          <span>启用监控</span>
+        </label>
+      </header>
+
+      <p id="message" class="message" role="status"></p>
+
+      <section class="panel">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">LOCATION</p>
+            <h2>位置与电表</h2>
+          </div>
+          <button id="lookup" class="button button-secondary" type="button">查询电表</button>
+        </div>
+        <div class="field-grid location-grid">
+          <label>校区<select id="campus"><option value="">请选择</option></select></label>
+          <label>楼宇<select id="building" disabled><option value="">请选择</option></select></label>
+          <label>楼层<select id="floor" disabled><option value="">请选择</option></select></label>
+          <label>房间<select id="room" disabled><option value="">请选择</option></select></label>
+        </div>
+        <div id="meter-results" class="meter-results" aria-live="polite"></div>
+        <div class="field-grid meter-grid">
+          <label>空调电表号<input id="air_meter_id" autocomplete="off" placeholder="可直接输入" /></label>
+          <label>照明电表号<input id="lighting_meter_id" autocomplete="off" placeholder="可直接输入" /></label>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">ALERTS</p>
+            <h2>预警与通知</h2>
+          </div>
+        </div>
+        <div class="field-grid alert-grid">
+          <label>空调阈值（kWh）<input id="air_threshold" type="number" min="0" step="0.1" /></label>
+          <label>照明阈值（kWh）<input id="lighting_threshold" type="number" min="0" step="0.1" /></label>
+          <label>通知 QQ 号<input id="notify_qq" inputmode="numeric" autocomplete="off" placeholder="默认留空" /></label>
+          <label>每日检查时间<input id="check_time" type="time" /></label>
+        </div>
+        <p class="hint">每次检查发现余额低于阈值都会发送提醒。</p>
+      </section>
+
+      <section class="panel status-panel">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">STATUS</p>
+            <h2>最近状态</h2>
+          </div>
+          <button id="check" class="button button-primary" type="button">立即检查</button>
+        </div>
+        <div class="status-grid">
+          <article class="status-card"><span>空调余额</span><strong id="air-balance">--</strong><small id="air-meta">尚未检查</small></article>
+          <article class="status-card"><span>照明余额</span><strong id="lighting-balance">--</strong><small id="lighting-meta">尚未检查</small></article>
+          <article class="status-card status-card-wide"><span>最后检查</span><strong id="last-check">--</strong><small id="last-error">无错误</small></article>
+        </div>
+      </section>
+
+      <footer class="actions">
+        <span id="scheduler-state" class="scheduler-state">调度状态：--</span>
+        <button id="save" class="button button-primary" type="button">保存设置</button>
+      </footer>
+    </main>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

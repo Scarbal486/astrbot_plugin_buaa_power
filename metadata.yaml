@@ -1,0 +1,13 @@
+name: astrbot_plugin_buaa_power
+display_name: 宿舍电量监控
+author: Scarbal486
+version: "1.0.0"
+desc: 北航宿舍空调与照明电量监控，支持仪表盘查询电表、配置阈值、QQ 通知、每日检查时间和指令查询。
+short_desc: 可配置的北航宿舍电量低余额提醒
+repo: https://github.com/Scarbal486/astrbot_plugin_buaa_power
+astrbot_version: ">=4.11.0"
+support_platforms:
+  - aiocqhttp
+pages:
+  - name: dashboard
+    title: 宿舍电量监控

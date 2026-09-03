@@ -1,0 +1,68 @@
+{
+  "enabled": {
+    "description": "启用每日电量检查",
+    "type": "bool",
+    "hint": "启用后按仪表盘中的每日检查时间执行查询",
+    "default": false
+  },
+  "campus": {
+    "description": "校区",
+    "type": "string",
+    "hint": "默认留空，请在仪表盘中选择",
+    "default": ""
+  },
+  "building": {
+    "description": "楼宇",
+    "type": "string",
+    "hint": "默认留空，请在仪表盘中选择",
+    "default": ""
+  },
+  "floor": {
+    "description": "楼层",
+    "type": "string",
+    "hint": "默认留空，请在仪表盘中选择",
+    "default": ""
+  },
+  "room": {
+    "description": "房间",
+    "type": "string",
+    "hint": "默认留空，请在仪表盘中选择",
+    "default": ""
+  },
+  "air_meter_id": {
+    "description": "空调电表号",
+    "type": "string",
+    "hint": "可直接输入，也可在仪表盘查询后填入",
+    "default": ""
+  },
+  "lighting_meter_id": {
+    "description": "照明电表号",
+    "type": "string",
+    "hint": "可直接输入，也可在仪表盘查询后填入",
+    "default": ""
+  },
+  "air_threshold": {
+    "description": "空调预警阈值（kWh）",
+    "type": "float",
+    "hint": "余额低于此值时提醒",
+    "default": 5
+  },
+  "lighting_threshold": {
+    "description": "照明预警阈值（kWh）",
+    "type": "float",
+    "hint": "余额低于此值时提醒",
+    "default": 10
+  },
+  "check_time": {
+    "description": "每日检查时间",
+    "type": "string",
+    "hint": "24 小时制 HH:MM，例如 08:00",
+    "default": "08:00"
+  },
+  "notify_qq": {
+    "description": "通知 QQ 号",
+    "type": "string",
+    "hint": "填写接收低余额提醒的纯数字 QQ 号，默认留空",
+    "default": ""
+  }
+}
