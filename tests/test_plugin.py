@@ -112,6 +112,9 @@ def test_dashboard_assets_exist_and_use_plugin_page_bridge():
     html = (root / "pages/dashboard/index.html").read_text(encoding="utf-8")
     script = (root / "pages/dashboard/app.js").read_text(encoding="utf-8")
     main_source = (root / "main.py").read_text(encoding="utf-8")
+    logo = root / "logo.png"
+    assert logo.is_file()
+    assert logo.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
     assert "window.AstrBotPluginPage" in script
     assert "air_meter_id" in html
     assert "lighting_meter_id" in html
