@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock
 import httpx
 import pytest
 
+from astrbot_plugin_buaa_power import main as plugin_module
 from astrbot_plugin_buaa_power.main import BuaaPowerPlugin
 
 
@@ -27,6 +28,67 @@ async def test_check_notifies_on_every_low_balance_check(tmp_path):
     plugin.fetch_meter.side_effect = [{"balance": 2}, {"balance": 8}]
     await plugin._check_once()
     assert plugin.send_alert.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_scheduled_check_sends_balance_report_for_normal_balances(tmp_path):
+    plugin = BuaaPowerPlugin.__new__(BuaaPowerPlugin)
+    plugin.state_path = tmp_path / "state.json"
+    plugin.config = {
+        "enabled": True,
+        "air_meter_id": "air",
+        "lighting_meter_id": "light",
+        "air_threshold": 5,
+        "lighting_threshold": 10,
+        "notify_qq": "123456",
+    }
+    plugin.fetch_meter = AsyncMock(side_effect=[{"balance": 20}, {"balance": 30}])
+    plugin.send_alert = AsyncMock(return_value=True)
+
+    result = await plugin._check_once(send_balance_report=True)
+
+    plugin.send_alert.assert_awaited_once()
+    message = plugin.send_alert.await_args.args[0]
+    assert "宿舍电量日报" in message
+    assert "空调：20 kWh" in message
+    assert "照明：30 kWh" in message
+    assert result["sent"] is True
+
+
+@pytest.mark.asyncio
+async def test_scheduled_low_balance_sends_report_and_separate_alert(tmp_path):
+    plugin = BuaaPowerPlugin.__new__(BuaaPowerPlugin)
+    plugin.state_path = tmp_path / "state.json"
+    plugin.config = {
+        "enabled": True,
+        "air_meter_id": "air",
+        "lighting_meter_id": "light",
+        "air_threshold": 5,
+        "lighting_threshold": 10,
+        "notify_qq": "123456",
+    }
+    plugin.fetch_meter = AsyncMock(side_effect=[{"balance": 2}, {"balance": 8}])
+    plugin.send_alert = AsyncMock(side_effect=[False, True])
+
+    result = await plugin._check_once(send_balance_report=True)
+
+    assert plugin.send_alert.await_count == 2
+    assert "宿舍电量日报" in plugin.send_alert.await_args_list[0].args[0]
+    assert "宿舍电量余额预警" in plugin.send_alert.await_args_list[1].args[0]
+    assert result["sent"] is False
+    assert "余额通知发送失败" in result["error"]
+
+
+@pytest.mark.asyncio
+async def test_dashboard_manual_check_does_not_send_proactive_messages(monkeypatch):
+    plugin = BuaaPowerPlugin.__new__(BuaaPowerPlugin)
+    plugin._check_once = AsyncMock(return_value={"status": "ok"})
+    monkeypatch.setattr(plugin_module, "json_response", lambda value: value)
+
+    result = await plugin.page_check()
+
+    assert result == {"status": "ok"}
+    plugin._check_once.assert_awaited_once_with(send_notification=False)
 
 
 @pytest.mark.asyncio
