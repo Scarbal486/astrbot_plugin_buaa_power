@@ -92,6 +92,16 @@ async def test_dashboard_manual_check_does_not_send_proactive_messages(monkeypat
 
 
 @pytest.mark.asyncio
+async def test_scheduled_job_enables_balance_report():
+    plugin = BuaaPowerPlugin.__new__(BuaaPowerPlugin)
+    plugin._check_once = AsyncMock()
+
+    await plugin._scheduled_check()
+
+    plugin._check_once.assert_awaited_once_with(send_balance_report=True)
+
+
+@pytest.mark.asyncio
 async def test_alert_send_failure_is_recorded_without_raising(tmp_path):
     plugin = BuaaPowerPlugin.__new__(BuaaPowerPlugin)
     plugin.state_path = tmp_path / "state.json"
