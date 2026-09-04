@@ -458,9 +458,7 @@ class BuaaPowerPlugin(Star):
                 lines = ["宿舍电量日报"]
                 for meter in results:
                     balance = meter.get("balance")
-                    balance_text = (
-                        "未知" if balance is None else f"{float(balance):g}"
-                    )
+                    balance_text = "未知" if balance is None else f"{float(balance):g}"
                     lines.append(f"{meter['name']}：{balance_text} kWh")
                 if errors:
                     lines.append(f"查询异常：{'；'.join(errors)}")
