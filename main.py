@@ -396,11 +396,16 @@ class BuaaPowerPlugin(Star):
         result["meter_id"] = meter_id
         return result
 
-    async def _check_once(self, send_notification: bool = True) -> dict[str, Any]:
-        """Check configured meters and send alerts for every low-balance run.
+    async def _check_once(
+        self,
+        send_notification: bool = True,
+        send_balance_report: bool = False,
+    ) -> dict[str, Any]:
+        """Check configured meters and optionally send proactive messages.
 
         Args:
             send_notification: Whether to send a low-balance alert after querying.
+            send_balance_report: Whether to always send the queried balances.
 
         Returns:
             A result dictionary suitable for the status API.
@@ -443,30 +448,69 @@ class BuaaPowerPlugin(Star):
             except Exception as exc:
                 errors.append(f"{name}电表查询失败：{exc}")
 
-        state["last_status"] = "error" if errors and not results else "ok"
-        state["last_error"] = "；".join(errors)
-        state["last_send"] = None
-        if send_notification and low_meters and config["notify_qq"]:
-            try:
-                state["last_send"] = await self.send_alert(
-                    build_alert_message(low_meters)
+        state["last_report_send"] = None
+        state["last_alert_send"] = None
+        send_results: list[bool] = []
+        delivery_errors: list[str] = []
+
+        if send_balance_report:
+            if config["notify_qq"]:
+                lines = ["宿舍电量日报"]
+                for meter in results:
+                    balance = meter.get("balance")
+                    balance_text = (
+                        "未知" if balance is None else f"{float(balance):g}"
+                    )
+                    lines.append(f"{meter['name']}：{balance_text} kWh")
+                if errors:
+                    lines.append(f"查询异常：{'；'.join(errors)}")
+                lines.append(
+                    f"检查时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
                 )
-                if not state["last_send"]:
-                    state["last_status"] = "error"
-                    state["last_error"] = (
-                        state["last_error"] + "；" if state["last_error"] else ""
-                    ) + "通知发送失败：没有可用的 QQ 平台或平台未接受消息"
-            except Exception as exc:
-                state["last_status"] = "error"
-                state["last_send"] = False
-                state["last_error"] = (
-                    state["last_error"] + "；" if state["last_error"] else ""
-                ) + f"通知发送失败：{exc}"
-        elif send_notification and low_meters:
-            state["last_send"] = False
-            state["last_error"] = (
-                state["last_error"] + "；" if state["last_error"] else ""
-            ) + "未配置通知 QQ"
+                try:
+                    report_sent = bool(await self.send_alert("\n".join(lines)))
+                except Exception as exc:
+                    report_sent = False
+                    delivery_errors.append(f"余额通知发送失败：{exc}")
+                else:
+                    if not report_sent:
+                        delivery_errors.append(
+                            "余额通知发送失败：没有可用的 QQ 平台或平台未接受消息"
+                        )
+                state["last_report_send"] = report_sent
+                send_results.append(report_sent)
+            else:
+                state["last_report_send"] = False
+                delivery_errors.append("未配置通知 QQ")
+                send_results.append(False)
+
+        if send_notification and low_meters:
+            if config["notify_qq"]:
+                try:
+                    alert_sent = bool(
+                        await self.send_alert(build_alert_message(low_meters))
+                    )
+                except Exception as exc:
+                    alert_sent = False
+                    delivery_errors.append(f"预警通知发送失败：{exc}")
+                else:
+                    if not alert_sent:
+                        delivery_errors.append(
+                            "预警通知发送失败：没有可用的 QQ 平台或平台未接受消息"
+                        )
+                state["last_alert_send"] = alert_sent
+                send_results.append(alert_sent)
+            else:
+                state["last_alert_send"] = False
+                if "未配置通知 QQ" not in delivery_errors:
+                    delivery_errors.append("未配置通知 QQ")
+                send_results.append(False)
+
+        state["last_send"] = all(send_results) if send_results else None
+        state["last_status"] = (
+            "error" if (errors and not results) or delivery_errors else "ok"
+        )
+        state["last_error"] = "；".join([*errors, *delivery_errors])
         self._write_state(state)
         return {
             "status": state["last_status"],
@@ -570,9 +614,9 @@ class BuaaPowerPlugin(Star):
         self.scheduler.start()
 
     async def _scheduled_check(self) -> None:
-        """Run one scheduled check and retain errors inside plugin state."""
+        """Run one scheduled report and retain errors inside plugin state."""
         try:
-            await self._check_once()
+            await self._check_once(send_balance_report=True)
         except Exception as exc:
             logger.error("BUAA power scheduled check failed: %s", exc)
             state = self._read_state()
@@ -626,9 +670,9 @@ class BuaaPowerPlugin(Star):
         )
 
     async def page_check(self):
-        """Run and return one immediate check."""
+        """Run and return one immediate check without proactive messages."""
         try:
-            return json_response(await self._check_once())
+            return json_response(await self._check_once(send_notification=False))
         except Exception as exc:
             logger.error("BUAA power manual check failed: %s", exc)
             return error_response(f"检查失败：{exc}", status_code=502)
