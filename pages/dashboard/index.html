@@ -12,11 +12,11 @@
         <div>
           <p class="eyebrow">BUAA POWER</p>
           <h1>宿舍电量监控</h1>
-          <p class="subtitle">配置电表、预警阈值和每日检查时间</p>
+          <p class="subtitle">配置电表、预警阈值和每日通知时间</p>
         </div>
         <label class="switch">
           <input id="enabled" type="checkbox" />
-          <span>启用监控</span>
+          <span>启用每日通知</span>
         </label>
       </header>
 
@@ -54,9 +54,9 @@
           <label>空调阈值（kWh）<input id="air_threshold" type="number" min="0" step="0.1" /></label>
           <label>照明阈值（kWh）<input id="lighting_threshold" type="number" min="0" step="0.1" /></label>
           <label>通知 QQ 号<input id="notify_qq" inputmode="numeric" autocomplete="off" placeholder="默认留空" /></label>
-          <label>每日检查时间<input id="check_time" type="time" /></label>
+          <label>每日通知时间<input id="check_time" type="time" /></label>
         </div>
-        <p class="hint">每次检查发现余额低于阈值都会发送提醒。</p>
+        <p class="hint">每天到设定时间发送当前余额；低于阈值时会另发一条预警。</p>
       </section>
 
       <section class="panel status-panel">

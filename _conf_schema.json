@@ -1,8 +1,8 @@
 {
   "enabled": {
-    "description": "启用每日电量检查",
+    "description": "启用每日电量通知",
     "type": "bool",
-    "hint": "启用后按仪表盘中的每日检查时间执行查询",
+    "hint": "启用后按设置时间查询，并向指定 QQ 发送当前余额",
     "default": false
   },
   "campus": {
@@ -54,15 +54,15 @@
     "default": 10
   },
   "check_time": {
-    "description": "每日检查时间",
+    "description": "每日通知时间",
     "type": "string",
-    "hint": "24 小时制 HH:MM，例如 08:00",
+    "hint": "每天查询并通知余额的时间，24 小时制 HH:MM，例如 08:00",
     "default": "08:00"
   },
   "notify_qq": {
     "description": "通知 QQ 号",
     "type": "string",
-    "hint": "填写接收低余额提醒的纯数字 QQ 号，默认留空",
+    "hint": "填写接收每日余额和低余额预警的纯数字 QQ 号，默认留空",
     "default": ""
   }
 }

@@ -174,6 +174,7 @@ def test_dashboard_assets_exist_and_use_plugin_page_bridge():
     html = (root / "pages/dashboard/index.html").read_text(encoding="utf-8")
     script = (root / "pages/dashboard/app.js").read_text(encoding="utf-8")
     main_source = (root / "main.py").read_text(encoding="utf-8")
+    metadata = (root / "metadata.yaml").read_text(encoding="utf-8")
     logo = root / "logo.png"
     assert logo.is_file()
     assert logo.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
@@ -182,11 +183,15 @@ def test_dashboard_assets_exist_and_use_plugin_page_bridge():
     assert "lighting_meter_id" in html
     assert "notify_qq" in html
     assert "check_time" in html
+    assert "每日通知时间" in html
+    assert "每天到设定时间发送当前余额；低于阈值时会另发一条预警。" in html
     assert "查询电表" in html
     for location_id in ("campus", "building", "floor", "room"):
         assert f'<select id="{location_id}"' in html
         assert f'<input id="{location_id}"' not in html
     assert '@filter.command("查询宿舍电量"' in main_source
+    assert 'version: "1.0.1"' in metadata
+    assert '    "1.0.1",' in main_source
     for endpoint in ("config", "options", "status", "check"):
         assert f'"page/{endpoint}"' in script
 
