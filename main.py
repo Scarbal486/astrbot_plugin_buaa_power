@@ -487,7 +487,7 @@ BASE_URL = "http://shsd.buaa.edu.cn/PubBuaa"
     PLUGIN_NAME,
     "Scarbal486",
     "北航宿舍空调与照明电量监控，可通过仪表盘配置每日余额通知和低余额预警。",
-    "1.0.2",
+    "1.0.3",
     "https://github.com/Scarbal486/astrbot_plugin_buaa_power",
 )
 class BuaaPowerPlugin(Star):
