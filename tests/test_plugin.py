@@ -52,7 +52,39 @@ async def test_scheduled_check_sends_balance_report_for_normal_balances(tmp_path
     assert "宿舍电量日报" in message
     assert "空调：20 kWh" in message
     assert "照明：30 kWh" in message
+    assert "今日充值" not in message
+    assert "今日/昨日用电：暂无可用数据" in message
     assert result["sent"] is True
+
+
+@pytest.mark.asyncio
+async def test_report_includes_dormitory_and_today_recharge(tmp_path):
+    plugin = BuaaPowerPlugin.__new__(BuaaPowerPlugin)
+    plugin.state_path = tmp_path / "state.json"
+    plugin.config = {
+        "enabled": True,
+        "air_meter_id": "air",
+        "lighting_meter_id": "light",
+        "air_threshold": 5,
+        "lighting_threshold": 10,
+        "notify_qq": "123456",
+    }
+    plugin.fetch_meter = AsyncMock(
+        side_effect=[
+            {
+                "balance": 20,
+                "dormitory": "3公寓南楼-5-520",
+                "reading_time": "2026/9/12 0:00:00",
+                "recharge_records": [{"date": "2026年09月12日 08:00:00", "quantity": 20}],
+            },
+            {"balance": 30, "dormitory": "3公寓南楼-5-520", "reading_time": "2026/9/12 0:00:00"},
+        ]
+    )
+    plugin.send_alert = AsyncMock(return_value=True)
+    await plugin._check_once(send_balance_report=True)
+    message = plugin.send_alert.await_args.args[0]
+    assert "宿舍：3公寓南楼-5-520" in message
+    assert "今日充值：20 kWh（2026年09月12日 08:00:00）" in message
 
 
 @pytest.mark.asyncio
@@ -200,8 +232,8 @@ def test_dashboard_assets_exist_and_use_plugin_page_bridge():
         assert f'<select id="{location_id}"' in html
         assert f'<input id="{location_id}"' not in html
     assert '@filter.command("查询宿舍电量"' in main_source
-    assert 'version: "1.0.1"' in metadata
-    assert '    "1.0.1",' in main_source
+    assert 'version: "1.0.2"' in metadata
+    assert '    "1.0.2",' in main_source
     for endpoint in ("config", "options", "status", "check"):
         assert f'"page/{endpoint}"' in script
 

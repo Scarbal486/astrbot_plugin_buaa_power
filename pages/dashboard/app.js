@@ -17,6 +17,9 @@ const elements = Object.fromEntries(
     "lighting-balance",
     "air-meta",
     "lighting-meta",
+    "air-extra",
+    "lighting-extra",
+    "dormitory-status",
     "last-check",
     "last-error",
     "scheduler-state",
@@ -114,6 +117,8 @@ function applyConfig(value) {
 
 function renderStatus(payload) {
   const state = payload?.state || {};
+  const dormitory = [state.air?.dormitory, state.lighting?.dormitory].find(Boolean);
+  elements["dormitory-status"].textContent = `宿舍：${dormitory || "--"}`;
   for (const [key, balanceId, metaId] of [
     ["air", "air-balance", "air-meta"],
     ["lighting", "lighting-balance", "lighting-meta"],
@@ -121,6 +126,35 @@ function renderStatus(payload) {
     const meter = state[key];
     elements[balanceId].textContent = meter?.balance == null ? "--" : `${meter.balance} kWh`;
     elements[metaId].textContent = meter?.power == null ? "功率：未知" : `功率：${meter.power}`;
+    const extra = elements[`${key}-extra`];
+    const records = (meter?.recharge_records || []).filter((record) => {
+      const reading = String(meter?.reading_time || "").match(/(\d{4})[/-](\d{1,2})[/-](\d{1,2})/);
+      const date = String(record?.date || "").match(/(\d{4})年(\d{1,2})月(\d{1,2})日/);
+      return reading && date && reading[1] === date[1] && Number(reading[2]) === Number(date[2]) && Number(reading[3]) === Number(date[3]);
+    });
+    const recharge = records.length ? records.map((record) => `${record.quantity} kWh`).join("；") : "";
+    const localUsage = meter?.local_usage;
+    let usageText = "暂无可用数据";
+    if (localUsage && (localUsage.today != null || localUsage.yesterday != null)) {
+      const todayValue = localUsage.today == null ? "暂无" : `${localUsage.today} kWh`;
+      const yesterdayValue = localUsage.yesterday == null ? "暂无" : `${localUsage.yesterday} kWh`;
+      const deltaValue = localUsage.delta == null ? "暂无" : `${localUsage.delta >= 0 ? "+" : ""}${localUsage.delta} kWh`;
+      usageText = `${todayValue} / ${yesterdayValue}（较昨日：${deltaValue}）`;
+    }
+    const usage = meter ? meter.daily_usage || [] : [];
+    const reading = String(meter?.reading_time || "").match(/(\d{4})[/-](\d{1,2})[/-](\d{1,2})/);
+    const today = reading ? `${reading[1]}-${String(reading[2]).padStart(2, "0")}-${String(reading[3]).padStart(2, "0")}` : "";
+    const todayItem = usage.find((item) => item.date === today);
+    const yesterdayDate = today ? new Date(`${today}T00:00:00+08:00`) : null;
+    if (yesterdayDate) yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+    const yesterday = yesterdayDate ? yesterdayDate.toISOString().slice(0, 10) : "";
+    const yesterdayItem = usage.find((item) => item.date === yesterday);
+    if (usageText === "暂无可用数据") {
+      usageText = todayItem && yesterdayItem
+        ? `${todayItem.usage} / ${yesterdayItem.usage} kWh（较昨日：${(todayItem.usage - yesterdayItem.usage).toFixed(2)} kWh）`
+        : "暂无可用数据";
+    }
+    extra.innerHTML = `${recharge ? `今日充值：${recharge}<br />` : ""}今日/昨日用电：${usageText}`;
   }
   elements["last-check"].textContent = state.last_check || "--";
   elements["last-error"].textContent = state.last_error || "无错误";

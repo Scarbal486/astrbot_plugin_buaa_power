@@ -72,6 +72,117 @@ def test_parse_meter_detail_reads_live_page_structure_metadata():
     assert result["reading_time"] == "2026/9/3 0:00:00"
 
 
+def test_parse_meter_detail_reads_dormitory_recharge_and_daily_usage():
+    html = """
+    <p class="shadow" style="font-size: 20px;">测试楼-1-101</p>
+    <p class="text-center text-muted">[截止 2026/9/12 0:00:00]</p>
+    <svg id="canvas1"><tspan>38</tspan></svg>
+    <div class="panel-heading">最近 5 次购电</div>
+    <table><tbody>
+      <tr><td>2026年09月12日 08:00:00</td><td>20</td><td>¥ 9.60</td><td>校园支付平台</td></tr>
+      <tr><td>2026年09月11日 08:00:00</td><td>10</td><td>¥ 4.80</td><td>校园支付平台</td></tr>
+    </tbody></table>
+    <script>
+      xAxis: { data: ['2026-09-11', '2026-09-12'] },
+      series: [{ name: '电量', type: 'line', data: [3.5, 4.0] }]
+    </script>
+    """
+    result = main.parse_meter_detail(html)
+    assert result["dormitory"] == "测试楼-1-101"
+    assert result["recharge_records"] == [
+        {"date": "2026年09月12日 08:00:00", "quantity": 20.0, "amount": "¥ 9.60", "operator": "校园支付平台"},
+        {"date": "2026年09月11日 08:00:00", "quantity": 10.0, "amount": "¥ 4.80", "operator": "校园支付平台"},
+    ]
+    assert result["daily_usage"] == [
+        {"date": "2026-09-11", "usage": 3.5},
+        {"date": "2026-09-12", "usage": 4.0},
+    ]
+
+
+def test_build_daily_usage_summary_reports_today_yesterday_and_delta():
+    summary = main.build_daily_usage_summary(
+        {
+            "reading_time": "2026/9/12 0:00:00",
+            "daily_usage": [
+                {"date": "2026-09-11", "usage": 3.5},
+                {"date": "2026-09-12", "usage": 4.0},
+            ],
+        }
+    )
+    assert summary == {"today": 4.0, "yesterday": 3.5, "delta": 0.5}
+
+
+def test_build_daily_usage_summary_keeps_missing_data_unknown():
+    summary = main.build_daily_usage_summary(
+        {"reading_time": "2026/9/12 0:00:00", "daily_usage": []}
+    )
+    assert summary == {"today": None, "yesterday": None, "delta": None}
+
+
+def test_build_meter_extra_lines_reports_today_recharge_and_unknown_usage():
+    lines = main.build_meter_extra_lines(
+        {
+            "reading_time": "2026/9/12 0:00:00",
+            "recharge_records": [
+                {"date": "2026年09月12日 08:00:00", "quantity": 20.0},
+            ],
+            "daily_usage": [],
+        }
+    )
+    assert lines == ["今日充值：20 kWh（2026年09月12日 08:00:00）", "今日/昨日用电：暂无可用数据"]
+
+
+def test_build_meter_extra_lines_omits_missing_today_recharge():
+    lines = main.build_meter_extra_lines(
+        {
+            "reading_time": "2026/9/12 0:00:00",
+            "recharge_records": [],
+            "daily_usage": [],
+        }
+    )
+    assert lines == ["今日/昨日用电：暂无可用数据"]
+
+
+def test_build_local_usage_summary_uses_previous_snapshots_and_recharge():
+    history = [
+        {
+            "date": "2026-09-11",
+            "balance": 40,
+            "recharge_records": [],
+        },
+        {
+            "date": "2026-09-12",
+            "balance": 35,
+            "recharge_records": [],
+        },
+    ]
+    current = {
+        "reading_time": "2026/9/13 0:00:00",
+        "balance": 25,
+        "recharge_records": [
+            {"date": "2026年09月12日 12:00:00", "quantity": 8},
+        ],
+    }
+    assert main.build_local_usage_summary(current, history) == {
+        "today": 18.0,
+        "yesterday": 5.0,
+        "delta": 13.0,
+    }
+
+
+def test_update_usage_history_replaces_same_day_snapshot_and_keeps_recent_days():
+    history = [{"date": "2026-09-12", "balance": 30}]
+    updated = main.update_usage_history(
+        history,
+        {
+            "reading_time": "2026/9/12 0:00:00",
+            "balance": 28,
+            "recharge_records": [],
+        },
+    )
+    assert updated == [{"date": "2026-09-12", "balance": 28.0, "recharge_records": []}]
+
+
 def test_build_alert_message_includes_each_low_meter():
     message = main.build_alert_message(
         [

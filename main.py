@@ -7,7 +7,7 @@ import json
 import math
 import re
 from collections.abc import Mapping
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -180,12 +180,221 @@ def parse_meter_detail(page_html: str) -> dict[str, Any]:
             r"\[[^\d\]]*(\d{4}/\d{1,2}/\d{1,2}\s+\d{1,2}:\d{2}:\d{2})\]",
             decoded_html,
         )
+    dormitory_match = re.search(
+        r'<p[^>]*style=["\'][^"\']*font-size\s*:\s*20px[^"\']*["\'][^>]*>(.*?)</p>',
+        decoded_html,
+        re.IGNORECASE | re.DOTALL,
+    )
+    dormitory = (
+        html_module.unescape(re.sub(r"<[^>]+>", "", dormitory_match.group(1))).strip()
+        if dormitory_match
+        else ""
+    )
+
+    recharge_records: list[dict[str, Any]] = []
+    for row in re.findall(r"<tr[^>]*>(.*?)</tr>", decoded_html, re.IGNORECASE | re.DOTALL):
+        cells = [
+            re.sub(r"\s+", " ", html_module.unescape(re.sub(r"<[^>]+>", "", cell))).strip()
+            for cell in re.findall(r"<td[^>]*>(.*?)</td>", row, re.IGNORECASE | re.DOTALL)
+        ]
+        if len(cells) < 4 or not re.search(r"\d{4}年\d{1,2}月\d{1,2}日", cells[0]):
+            continue
+        quantity_match = re.search(r"-?\d+(?:\.\d+)?", cells[1])
+        if quantity_match:
+            recharge_records.append(
+                {
+                    "date": cells[0],
+                    "quantity": float(quantity_match.group()),
+                    "amount": cells[2],
+                    "operator": cells[3],
+                }
+            )
+
+    daily_usage: list[dict[str, Any]] = []
+    x_axis_match = re.search(
+        r"xAxis\s*:\s*\{[^{}]*?data\s*:\s*\[([^\]]*)\]",
+        decoded_html,
+        re.IGNORECASE | re.DOTALL,
+    )
+    series_match = re.search(
+        r"series\s*:\s*\[.*?data\s*:\s*\[([^\]]*)\]",
+        decoded_html,
+        re.IGNORECASE | re.DOTALL,
+    )
+    if x_axis_match and series_match:
+        dates = re.findall(r"['\"]([^'\"]+)['\"]", x_axis_match.group(1))
+        usages = re.findall(r"-?\d+(?:\.\d+)?", series_match.group(1))
+        daily_usage = [
+            {"date": date, "usage": float(usage)}
+            for date, usage in zip(dates, usages)
+        ]
+
     return {
         "balance": float(balance_match.group(1)),
         "power": float(power_match.group(1)) if power_match else None,
         "address": address_match.group(1).strip() if address_match else "",
         "reading_time": time_match.group(1) if time_match else "",
+        "dormitory": dormitory,
+        "recharge_records": recharge_records,
+        "daily_usage": daily_usage,
     }
+
+
+def build_daily_usage_summary(detail: Mapping[str, Any]) -> dict[str, float | None]:
+    """Return usage for the reading date and its previous calendar day."""
+    reading_match = re.search(
+        r"(\d{4})[/-](\d{1,2})[/-](\d{1,2})", str(detail.get("reading_time") or "")
+    )
+    if not reading_match:
+        return {"today": None, "yesterday": None, "delta": None}
+    reading_date = datetime(*map(int, reading_match.groups())).date()
+    values: dict[Any, float] = {}
+    for item in detail.get("daily_usage") or []:
+        if not isinstance(item, Mapping):
+            continue
+        date_match = re.search(r"(\d{4})[/-](\d{1,2})[/-](\d{1,2})", str(item.get("date") or ""))
+        try:
+            usage = float(item.get("usage"))
+        except (TypeError, ValueError):
+            continue
+        if date_match:
+            values[datetime(*map(int, date_match.groups())).date()] = usage
+    today = values.get(reading_date)
+    yesterday = values.get(reading_date.fromordinal(reading_date.toordinal() - 1))
+    return {
+        "today": today,
+        "yesterday": yesterday,
+        "delta": today - yesterday if today is not None and yesterday is not None else None,
+    }
+
+
+def _parse_date(value: Any) -> date | None:
+    match = re.search(
+        r"(\d{4})[年/-](\d{1,2})[月/-](\d{1,2})日?", str(value or "")
+    )
+    if not match:
+        return None
+    try:
+        return date(*map(int, match.groups()))
+    except ValueError:
+        return None
+
+
+def _recharge_between(
+    records: Any, start: date, end: date
+) -> float:
+    total = 0.0
+    for record in records or []:
+        if not isinstance(record, Mapping):
+            continue
+        record_date = _parse_date(record.get("date"))
+        if record_date is None or not start <= record_date < end:
+            continue
+        try:
+            total += float(record.get("quantity"))
+        except (TypeError, ValueError):
+            continue
+    return total
+
+
+def update_usage_history(
+    history: Any, detail: Mapping[str, Any], limit: int = 60
+) -> list[dict[str, Any]]:
+    """Store one compact daily meter snapshot, replacing same-day data."""
+    reading_date = _parse_date(detail.get("reading_time"))
+    try:
+        balance = float(detail.get("balance"))
+    except (TypeError, ValueError):
+        return [item for item in history or [] if isinstance(item, Mapping)][-limit:]
+    if reading_date is None:
+        return [item for item in history or [] if isinstance(item, Mapping)][-limit:]
+    snapshots = {
+        str(item.get("date")): dict(item)
+        for item in history or []
+        if isinstance(item, Mapping) and _parse_date(item.get("date")) is not None
+    }
+    key = reading_date.isoformat()
+    snapshots[key] = {
+        "date": key,
+        "balance": balance,
+        "recharge_records": list(detail.get("recharge_records") or []),
+    }
+    return [snapshots[key] for key in sorted(snapshots)[-limit:]]
+
+
+def build_local_usage_summary(
+    detail: Mapping[str, Any], history: Any
+) -> dict[str, float | None]:
+    """Calculate current and previous daily usage from local balance snapshots."""
+    current_date = _parse_date(detail.get("reading_time"))
+    if current_date is None:
+        return {"today": None, "yesterday": None, "delta": None}
+    snapshots: dict[date, Mapping[str, Any]] = {}
+    for item in history or []:
+        if isinstance(item, Mapping):
+            item_date = _parse_date(item.get("date"))
+            if item_date is not None:
+                snapshots[item_date] = item
+    snapshots[current_date] = detail
+
+    def usage_for(end_date: date) -> float | None:
+        previous_date = end_date - timedelta(days=1)
+        previous = snapshots.get(previous_date)
+        current = snapshots.get(end_date)
+        if not previous or not current:
+            return None
+        try:
+            previous_balance = float(previous.get("balance"))
+            current_balance = float(current.get("balance"))
+        except (TypeError, ValueError):
+            return None
+        recharge = _recharge_between(
+            current.get("recharge_records"), previous_date, end_date
+        )
+        return previous_balance + recharge - current_balance
+
+    today = usage_for(current_date)
+    yesterday = usage_for(current_date - timedelta(days=1))
+    return {
+        "today": today,
+        "yesterday": yesterday,
+        "delta": today - yesterday if today is not None and yesterday is not None else None,
+    }
+
+
+def _reading_date(detail: Mapping[str, Any]):
+    match = re.search(r"(\d{4})[/-](\d{1,2})[/-](\d{1,2})", str(detail.get("reading_time") or ""))
+    return datetime(*map(int, match.groups())).date() if match else None
+
+
+def build_meter_extra_lines(
+    detail: Mapping[str, Any], usage_summary: Mapping[str, Any] | None = None
+) -> list[str]:
+    """Format today's recharge and the available daily-usage comparison."""
+    reading_date = _reading_date(detail)
+    today_records = []
+    if reading_date:
+        for record in detail.get("recharge_records") or []:
+            match = re.search(r"(\d{4})年(\d{1,2})月(\d{1,2})日", str(record.get("date") or ""))
+            if match and datetime(*map(int, match.groups())).date() == reading_date:
+                today_records.append(record)
+    lines: list[str] = []
+    if today_records:
+        recharge = "；".join(
+            f"{float(record['quantity']):g} kWh（{record['date']}）" for record in today_records
+        )
+        lines.append(f"今日充值：{recharge}")
+
+    usage = usage_summary or detail.get("local_usage") or build_daily_usage_summary(detail)
+    if usage["today"] is None and usage["yesterday"] is None:
+        usage_line = "今日/昨日用电：暂无可用数据"
+    else:
+        today = "暂无" if usage["today"] is None else f"{usage['today']:g} kWh"
+        yesterday = "暂无" if usage["yesterday"] is None else f"{usage['yesterday']:g} kWh"
+        delta = "暂无" if usage["delta"] is None else f"{usage['delta']:+g} kWh"
+        usage_line = f"今日用电：{today}；昨日：{yesterday}；较昨日：{delta}"
+    lines.append(usage_line)
+    return lines
 
 
 def build_alert_message(low_meters: list[Mapping[str, Any]]) -> str:
@@ -197,12 +406,16 @@ def build_alert_message(low_meters: list[Mapping[str, Any]]) -> str:
     Returns:
         A human-readable low-balance notification.
     """
+    dormitory = next((str(meter.get("dormitory") or "") for meter in low_meters if meter.get("dormitory")), "")
     lines = ["宿舍电量余额预警"]
+    if dormitory:
+        lines.append(f"宿舍：{dormitory}")
     for meter in low_meters:
         lines.append(
             f"{meter['name']}电表：{meter['balance']:g} kWh "
             f"（预警阈值 {meter['threshold']:g} kWh）"
         )
+        lines.extend(f"  {line}" for line in build_meter_extra_lines(meter))
     lines.append(f"检查时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     return "\n".join(lines)
 
@@ -274,7 +487,7 @@ BASE_URL = "http://shsd.buaa.edu.cn/PubBuaa"
     PLUGIN_NAME,
     "Scarbal486",
     "北航宿舍空调与照明电量监控，可通过仪表盘配置每日余额通知和低余额预警。",
-    "1.0.1",
+    "1.0.2",
     "https://github.com/Scarbal486/astrbot_plugin_buaa_power",
 )
 class BuaaPowerPlugin(Star):
@@ -438,7 +651,11 @@ class BuaaPowerPlugin(Star):
                 detail["name"] = name
                 detail["threshold"] = config[threshold_key]
                 state_key = "air" if name == "空调" else "lighting"
+                history_key = f"{state_key}_history"
+                previous_history = state.get(history_key, [])
+                detail["local_usage"] = build_local_usage_summary(detail, previous_history)
                 state[state_key] = detail
+                state[history_key] = update_usage_history(previous_history, detail)
                 results.append(detail)
                 if (
                     detail.get("balance") is not None
@@ -455,11 +672,18 @@ class BuaaPowerPlugin(Star):
 
         if send_balance_report:
             if config["notify_qq"]:
+                dormitory = next(
+                    (str(meter.get("dormitory") or "") for meter in results if meter.get("dormitory")),
+                    "",
+                )
                 lines = ["宿舍电量日报"]
+                if dormitory:
+                    lines.append(f"宿舍：{dormitory}")
                 for meter in results:
                     balance = meter.get("balance")
                     balance_text = "未知" if balance is None else f"{float(balance):g}"
                     lines.append(f"{meter['name']}：{balance_text} kWh")
+                    lines.extend(f"  {line}" for line in build_meter_extra_lines(meter))
                 if errors:
                     lines.append(f"查询异常：{'；'.join(errors)}")
                 lines.append(
@@ -545,6 +769,12 @@ class BuaaPowerPlugin(Star):
             return
 
         lines = ["宿舍电量查询"]
+        dormitory = next(
+            (str(meter.get("dormitory") or "") for meter in result.get("meters", []) if meter.get("dormitory")),
+            "",
+        )
+        if dormitory:
+            lines.append(f"宿舍：{dormitory}")
         for meter in result.get("meters", []):
             balance = meter.get("balance")
             balance_text = "未知" if balance is None else f"{float(balance):g}"
@@ -553,6 +783,7 @@ class BuaaPowerPlugin(Star):
                 lines.append(f"  当前功率：{meter['power']:g}")
             if meter.get("reading_time"):
                 lines.append(f"  抄表时间：{meter['reading_time']}")
+            lines.extend(f"  {line}" for line in build_meter_extra_lines(meter))
         if result.get("error"):
             lines.append(f"查询异常：{result['error']}")
         if not result.get("meters"):
