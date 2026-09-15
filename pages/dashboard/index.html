@@ -56,7 +56,7 @@
           <label>通知 QQ 号<input id="notify_qq" inputmode="numeric" autocomplete="off" placeholder="默认留空" /></label>
           <label>每日通知时间<input id="check_time" type="time" /></label>
         </div>
-        <p class="hint">每天到设定时间发送当前余额；低于阈值时会另发一条预警。</p>
+        <p class="hint">每天到设定时间发送当前余额；每 6 小时检查一次低余额并在低于阈值时发送预警。</p>
       </section>
 
       <section class="panel status-panel">
@@ -69,8 +69,8 @@
         </div>
         <p id="dormitory-status" class="status-location">宿舍：--</p>
         <div class="status-grid">
-          <article class="status-card"><span>空调余额</span><strong id="air-balance">--</strong><small id="air-meta">尚未检查</small><small id="air-extra">今日充值：--<br />今日/昨日用电：--</small></article>
-          <article class="status-card"><span>照明余额</span><strong id="lighting-balance">--</strong><small id="lighting-meta">尚未检查</small><small id="lighting-extra">今日充值：--<br />今日/昨日用电：--</small></article>
+          <article class="status-card"><span>空调余额</span><strong id="air-balance">--</strong><small id="air-meta">尚未检查</small><small id="air-extra">今日充值：--<br />今日用电：--</small></article>
+          <article class="status-card"><span>照明余额</span><strong id="lighting-balance">--</strong><small id="lighting-meta">尚未检查</small><small id="lighting-extra">今日充值：--<br />今日用电：--</small></article>
           <article class="status-card status-card-wide"><span>最后检查</span><strong id="last-check">--</strong><small id="last-error">无错误</small></article>
         </div>
       </section>

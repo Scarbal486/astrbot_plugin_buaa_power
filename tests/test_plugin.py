@@ -45,7 +45,7 @@ async def test_scheduled_check_sends_balance_report_for_normal_balances(tmp_path
     plugin.fetch_meter = AsyncMock(side_effect=[{"balance": 20}, {"balance": 30}])
     plugin.send_alert = AsyncMock(return_value=True)
 
-    result = await plugin._check_once(send_balance_report=True)
+    result = await plugin._check_once(send_balance_report=True, send_notification=False)
 
     plugin.send_alert.assert_awaited_once()
     message = plugin.send_alert.await_args.args[0]
@@ -53,7 +53,9 @@ async def test_scheduled_check_sends_balance_report_for_normal_balances(tmp_path
     assert "空调：20 kWh" in message
     assert "照明：30 kWh" in message
     assert "今日充值" not in message
-    assert "今日/昨日用电：暂无可用数据" in message
+    assert "今日用电：暂无可用数据" in message
+    assert "昨日" not in message
+    assert "较昨日" not in message
     assert result["sent"] is True
 
 
@@ -88,7 +90,7 @@ async def test_report_includes_dormitory_and_today_recharge(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_scheduled_low_balance_sends_report_and_separate_alert(tmp_path):
+async def test_scheduled_report_does_not_send_low_balance_alert(tmp_path):
     plugin = BuaaPowerPlugin.__new__(BuaaPowerPlugin)
     plugin.state_path = tmp_path / "state.json"
     plugin.config = {
@@ -100,15 +102,26 @@ async def test_scheduled_low_balance_sends_report_and_separate_alert(tmp_path):
         "notify_qq": "123456",
     }
     plugin.fetch_meter = AsyncMock(side_effect=[{"balance": 2}, {"balance": 8}])
-    plugin.send_alert = AsyncMock(side_effect=[False, True])
+    plugin.send_alert = AsyncMock(return_value=True)
 
-    result = await plugin._check_once(send_balance_report=True)
+    result = await plugin._check_once(
+        send_notification=False, send_balance_report=True
+    )
 
-    assert plugin.send_alert.await_count == 2
+    assert plugin.send_alert.await_count == 1
     assert "宿舍电量日报" in plugin.send_alert.await_args_list[0].args[0]
-    assert "宿舍电量余额预警" in plugin.send_alert.await_args_list[1].args[0]
-    assert result["sent"] is False
-    assert "余额通知发送失败" in result["error"]
+    assert "宿舍电量余额预警" not in plugin.send_alert.await_args_list[0].args[0]
+    assert result["sent"] is True
+
+
+@pytest.mark.asyncio
+async def test_scheduled_alert_check_queries_without_daily_report():
+    plugin = BuaaPowerPlugin.__new__(BuaaPowerPlugin)
+    plugin._check_once = AsyncMock()
+
+    await plugin._scheduled_alert_check()
+
+    plugin._check_once.assert_awaited_once_with(send_balance_report=False)
 
 
 @pytest.mark.asyncio
@@ -130,7 +143,9 @@ async def test_scheduled_job_enables_balance_report():
 
     await plugin._scheduled_check()
 
-    plugin._check_once.assert_awaited_once_with(send_balance_report=True)
+    plugin._check_once.assert_awaited_once_with(
+        send_notification=False, send_balance_report=True
+    )
 
 
 @pytest.mark.asyncio
@@ -226,7 +241,7 @@ def test_dashboard_assets_exist_and_use_plugin_page_bridge():
     assert "notify_qq" in html
     assert "check_time" in html
     assert "每日通知时间" in html
-    assert "每天到设定时间发送当前余额；低于阈值时会另发一条预警。" in html
+    assert "每天到设定时间发送当前余额；每 6 小时检查一次低余额并在低于阈值时发送预警。" in html
     assert "查询电表" in html
     for location_id in ("campus", "building", "floor", "room"):
         assert f'<select id="{location_id}"' in html

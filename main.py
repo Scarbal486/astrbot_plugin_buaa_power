@@ -14,6 +14,7 @@ from typing import Any
 import httpx
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.interval import IntervalTrigger
 
 from astrbot.api import AstrBotConfig, logger
 from astrbot.api.event import AstrMessageEvent, MessageChain, filter
@@ -386,14 +387,12 @@ def build_meter_extra_lines(
         lines.append(f"今日充值：{recharge}")
 
     usage = usage_summary or detail.get("local_usage") or build_daily_usage_summary(detail)
-    if usage["today"] is None and usage["yesterday"] is None:
-        usage_line = "今日/昨日用电：暂无可用数据"
-    else:
-        today = "暂无" if usage["today"] is None else f"{usage['today']:g} kWh"
-        yesterday = "暂无" if usage["yesterday"] is None else f"{usage['yesterday']:g} kWh"
-        delta = "暂无" if usage["delta"] is None else f"{usage['delta']:+g} kWh"
-        usage_line = f"今日用电：{today}；昨日：{yesterday}；较昨日：{delta}"
-    lines.append(usage_line)
+    today = (
+        "暂无可用数据"
+        if usage["today"] is None
+        else f"{usage['today']:g} kWh"
+    )
+    lines.append(f"今日用电：{today}")
     return lines
 
 
@@ -840,14 +839,34 @@ class BuaaPowerPlugin(Star):
             coalesce=True,
             misfire_grace_time=300,
         )
+        self.scheduler.add_job(
+            self._scheduled_alert_check,
+            IntervalTrigger(hours=6),
+            id=f"{PLUGIN_NAME}_alert_check",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+            misfire_grace_time=300,
+        )
         self.scheduler.start()
 
     async def _scheduled_check(self) -> None:
         """Run one scheduled report and retain errors inside plugin state."""
         try:
-            await self._check_once(send_balance_report=True)
+            await self._check_once(send_notification=False, send_balance_report=True)
         except Exception as exc:
             logger.error("BUAA power scheduled check failed: %s", exc)
+            state = self._read_state()
+            state["last_status"] = "error"
+            state["last_error"] = str(exc)
+            self._write_state(state)
+
+    async def _scheduled_alert_check(self) -> None:
+        """Run the six-hour low-balance check without sending a daily report."""
+        try:
+            await self._check_once(send_balance_report=False)
+        except Exception as exc:
+            logger.error("BUAA power alert check failed: %s", exc)
             state = self._read_state()
             state["last_status"] = "error"
             state["last_error"] = str(exc)
