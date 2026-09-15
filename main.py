@@ -377,8 +377,8 @@ def build_meter_extra_lines(
     usage = usage_summary or detail.get("local_usage") or build_daily_usage_summary(detail)
     yesterday = (
         "暂无可用数据"
-        if usage["yesterday"] is None
-        else f"{usage['yesterday']:g} kWh"
+        if usage["today"] is None
+        else f"{usage['today']:g} kWh"
     )
     lines.append(f"昨日用电：{yesterday}")
     return lines
@@ -473,8 +473,8 @@ BASE_URL = "http://shsd.buaa.edu.cn/PubBuaa"
 @register(
     PLUGIN_NAME,
     "Scarbal486",
-    "北航宿舍空调与照明电量监控，可通过仪表盘配置每日余额通知和每 6 小时低余额预警。",
-    "1.0.4",
+    "北航宿舍空调与照明电量监控，显示昨日用电并支持每日余额通知和每 6 小时低余额预警。",
+    "1.0.5",
     "https://github.com/Scarbal486/astrbot_plugin_buaa_power",
 )
 class BuaaPowerPlugin(Star):

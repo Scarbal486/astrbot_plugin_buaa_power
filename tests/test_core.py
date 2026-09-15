@@ -143,18 +143,29 @@ def test_build_meter_extra_lines_omits_missing_today_recharge():
     assert lines == ["昨日用电：暂无可用数据"]
 
 
-def test_build_meter_extra_lines_reports_yesterday_only():
+def test_build_meter_extra_lines_reports_previous_calendar_day_usage():
     lines = main.build_meter_extra_lines(
         {
-            "reading_time": "2026/9/12 0:00:00",
+            "reading_time": "2026/9/15 12:00:00",
             "recharge_records": [],
             "daily_usage": [
-                {"date": "2026-09-11", "usage": 3.5},
-                {"date": "2026-09-12", "usage": 4.0},
+                {"date": "2026-09-14", "usage": 3.5},
+                {"date": "2026-09-15", "usage": 4.0},
             ],
         }
     )
-    assert lines == ["昨日用电：3.5 kWh"]
+    assert lines == ["昨日用电：4 kWh"]
+
+
+def test_build_meter_extra_lines_uses_midnight_balance_interval_for_yesterday():
+    lines = main.build_meter_extra_lines(
+        {
+            "reading_time": "2026/9/15 12:00:00",
+            "recharge_records": [],
+            "local_usage": {"today": 6.0, "yesterday": 2.0, "delta": 4.0},
+        }
+    )
+    assert lines == ["昨日用电：6 kWh"]
 
 
 def test_build_local_usage_summary_uses_previous_snapshots_and_recharge():
