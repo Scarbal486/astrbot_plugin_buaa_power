@@ -125,7 +125,7 @@ function renderStatus(payload) {
   ]) {
     const meter = state[key];
     elements[balanceId].textContent = meter?.balance == null ? "--" : `${meter.balance} kWh`;
-    elements[metaId].textContent = meter?.power == null ? "功率：未知" : `功率：${meter.power}`;
+    elements[metaId].textContent = meter ? "已查询" : "尚未检查";
     const extra = elements[`${key}-extra`];
     const records = (meter?.recharge_records || []).filter((record) => {
       const reading = String(meter?.reading_time || "").match(/(\d{4})[/-](\d{1,2})[/-](\d{1,2})/);
@@ -135,17 +135,20 @@ function renderStatus(payload) {
     const recharge = records.length ? records.map((record) => `${record.quantity} kWh`).join("；") : "";
     const localUsage = meter?.local_usage;
     let usageText = "暂无可用数据";
-    if (localUsage?.today != null) {
-      usageText = `${localUsage.today} kWh`;
+    if (localUsage?.yesterday != null) {
+      usageText = `${localUsage.yesterday} kWh`;
     }
     const usage = meter ? meter.daily_usage || [] : [];
     const reading = String(meter?.reading_time || "").match(/(\d{4})[/-](\d{1,2})[/-](\d{1,2})/);
     const today = reading ? `${reading[1]}-${String(reading[2]).padStart(2, "0")}-${String(reading[3]).padStart(2, "0")}` : "";
-    const todayItem = usage.find((item) => item.date === today);
     if (usageText === "暂无可用数据") {
-      usageText = todayItem ? `${todayItem.usage} kWh` : "暂无可用数据";
+      const yesterdayDate = today ? new Date(`${today}T00:00:00+08:00`) : null;
+      if (yesterdayDate) yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+      const yesterday = yesterdayDate ? yesterdayDate.toISOString().slice(0, 10) : "";
+      const yesterdayItem = usage.find((item) => item.date === yesterday);
+      usageText = yesterdayItem ? `${yesterdayItem.usage} kWh` : "暂无可用数据";
     }
-    extra.innerHTML = `${recharge ? `今日充值：${recharge}<br />` : ""}今日用电：${usageText}`;
+    extra.innerHTML = `${recharge ? `今日充值：${recharge}<br />` : ""}昨日用电：${usageText}`;
   }
   elements["last-check"].textContent = state.last_check || "--";
   elements["last-error"].textContent = state.last_error || "无错误";

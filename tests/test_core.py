@@ -46,7 +46,7 @@ def test_normalize_config_rejects_non_ascii_notify_qq():
         raise AssertionError("non-ASCII QQ target was accepted")
 
 
-def test_parse_meter_detail_reads_balance_and_keeps_unknown_power():
+def test_parse_meter_detail_omits_power_field():
     html = """
     <div>地址：A区 1号楼 2层 201</div>
     <div>截止时间：2026-09-04 00:00:00</div>
@@ -54,7 +54,7 @@ def test_parse_meter_detail_reads_balance_and_keeps_unknown_power():
     """
     result = main.parse_meter_detail(html)
     assert result["balance"] == 12.5
-    assert result["power"] is None
+    assert "power" not in result
 
 
 def test_parse_meter_detail_reads_live_page_structure_metadata():
@@ -129,7 +129,7 @@ def test_build_meter_extra_lines_reports_today_recharge_and_unknown_usage():
             "daily_usage": [],
         }
     )
-    assert lines == ["今日充值：20 kWh（2026年09月12日 08:00:00）", "今日用电：暂无可用数据"]
+    assert lines == ["今日充值：20 kWh（2026年09月12日 08:00:00）", "昨日用电：暂无可用数据"]
 
 
 def test_build_meter_extra_lines_omits_missing_today_recharge():
@@ -140,10 +140,10 @@ def test_build_meter_extra_lines_omits_missing_today_recharge():
             "daily_usage": [],
         }
     )
-    assert lines == ["今日用电：暂无可用数据"]
+    assert lines == ["昨日用电：暂无可用数据"]
 
 
-def test_build_meter_extra_lines_omits_yesterday_comparison():
+def test_build_meter_extra_lines_reports_yesterday_only():
     lines = main.build_meter_extra_lines(
         {
             "reading_time": "2026/9/12 0:00:00",
@@ -154,7 +154,7 @@ def test_build_meter_extra_lines_omits_yesterday_comparison():
             ],
         }
     )
-    assert lines == ["今日用电：4 kWh"]
+    assert lines == ["昨日用电：3.5 kWh"]
 
 
 def test_build_local_usage_summary_uses_previous_snapshots_and_recharge():

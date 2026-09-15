@@ -53,9 +53,8 @@ async def test_scheduled_check_sends_balance_report_for_normal_balances(tmp_path
     assert "空调：20 kWh" in message
     assert "照明：30 kWh" in message
     assert "今日充值" not in message
-    assert "今日用电：暂无可用数据" in message
-    assert "昨日" not in message
-    assert "较昨日" not in message
+    assert "昨日用电：暂无可用数据" in message
+    assert "今日用电" not in message
     assert result["sent"] is True
 
 
@@ -247,8 +246,10 @@ def test_dashboard_assets_exist_and_use_plugin_page_bridge():
         assert f'<select id="{location_id}"' in html
         assert f'<input id="{location_id}"' not in html
     assert '@filter.command("查询宿舍电量"' in main_source
-    assert 'version: "1.0.3"' in metadata
-    assert '    "1.0.3",' in main_source
+    assert 'version: "1.0.4"' in metadata
+    assert '    "1.0.4",' in main_source
+    assert '"power"' not in main_source
+    assert "功率" not in html
     for endpoint in ("config", "options", "status", "check"):
         assert f'"page/{endpoint}"' in script
 
@@ -267,8 +268,8 @@ async def test_query_command_returns_current_balances_without_alert(tmp_path):
     }
     plugin.fetch_meter = AsyncMock(
         side_effect=[
-            {"balance": 2.5, "power": 1.2, "reading_time": "2026-09-04 08:00"},
-            {"balance": 8, "power": None, "reading_time": ""},
+            {"balance": 2.5, "reading_time": "2026-09-04 08:00"},
+            {"balance": 8, "reading_time": ""},
         ]
     )
     plugin.send_alert = AsyncMock()
@@ -281,4 +282,5 @@ async def test_query_command_returns_current_balances_without_alert(tmp_path):
     assert len(messages) == 1
     assert "空调：2.5 kWh" in messages[0]
     assert "照明：8 kWh" in messages[0]
+    assert "功率" not in messages[0]
     plugin.send_alert.assert_not_awaited()

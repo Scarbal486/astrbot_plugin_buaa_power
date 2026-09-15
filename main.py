@@ -112,7 +112,7 @@ def parse_meter_detail(page_html: str) -> dict[str, Any]:
         page_html: Detail page HTML containing text or SVG labels.
 
     Returns:
-        Parsed balance, power, address, and reading time.
+        Parsed balance, address, and reading time.
 
     Raises:
         ValueError: If no balance value can be found.
@@ -135,17 +135,6 @@ def parse_meter_detail(page_html: str) -> dict[str, Any]:
     if not balance_match:
         raise ValueError("电表详情中未找到余额")
 
-    power_match = re.search(
-        r"(?:当前功率|实时功率|功率)\s*[:：]?\s*(-?\d+(?:\.\d+)?)",
-        text,
-    )
-    canvas_power = re.search(
-        r'<svg[^>]+id=["\']canvas2["\'][^>]*>.*?<tspan[^>]*>\s*(-?\d+(?:\.\d+)?)\s*</tspan>',
-        decoded_html,
-        re.IGNORECASE | re.DOTALL,
-    )
-    if power_match is None and canvas_power is not None:
-        power_match = canvas_power
     address_match = re.search(
         r"(?:地址|房间)\s*[:：]\s*(.+?)(?=\s+(?:截止时间|抄表时间|更新时间)\s*[:：]|$)",
         text,
@@ -232,7 +221,6 @@ def parse_meter_detail(page_html: str) -> dict[str, Any]:
 
     return {
         "balance": float(balance_match.group(1)),
-        "power": float(power_match.group(1)) if power_match else None,
         "address": address_match.group(1).strip() if address_match else "",
         "reading_time": time_match.group(1) if time_match else "",
         "dormitory": dormitory,
@@ -387,12 +375,12 @@ def build_meter_extra_lines(
         lines.append(f"今日充值：{recharge}")
 
     usage = usage_summary or detail.get("local_usage") or build_daily_usage_summary(detail)
-    today = (
+    yesterday = (
         "暂无可用数据"
-        if usage["today"] is None
-        else f"{usage['today']:g} kWh"
+        if usage["yesterday"] is None
+        else f"{usage['yesterday']:g} kWh"
     )
-    lines.append(f"今日用电：{today}")
+    lines.append(f"昨日用电：{yesterday}")
     return lines
 
 
@@ -485,8 +473,8 @@ BASE_URL = "http://shsd.buaa.edu.cn/PubBuaa"
 @register(
     PLUGIN_NAME,
     "Scarbal486",
-    "北航宿舍空调与照明电量监控，可通过仪表盘配置每日余额通知和低余额预警。",
-    "1.0.3",
+    "北航宿舍空调与照明电量监控，可通过仪表盘配置每日余额通知和每 6 小时低余额预警。",
+    "1.0.4",
     "https://github.com/Scarbal486/astrbot_plugin_buaa_power",
 )
 class BuaaPowerPlugin(Star):
@@ -778,8 +766,6 @@ class BuaaPowerPlugin(Star):
             balance = meter.get("balance")
             balance_text = "未知" if balance is None else f"{float(balance):g}"
             lines.append(f"{meter['name']}：{balance_text} kWh")
-            if meter.get("power") is not None:
-                lines.append(f"  当前功率：{meter['power']:g}")
             if meter.get("reading_time"):
                 lines.append(f"  抄表时间：{meter['reading_time']}")
             lines.extend(f"  {line}" for line in build_meter_extra_lines(meter))
