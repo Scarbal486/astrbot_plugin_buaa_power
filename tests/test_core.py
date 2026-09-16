@@ -178,20 +178,20 @@ def test_build_local_usage_summary_uses_previous_snapshots_and_recharge():
         {
             "date": "2026-09-12",
             "balance": 35,
-            "recharge_records": [],
+            "recharge_records": [{"date": "2026年09月12日 12:00:00", "quantity": 8}],
         },
     ]
     current = {
         "reading_time": "2026/9/13 0:00:00",
         "balance": 25,
         "recharge_records": [
-            {"date": "2026年09月12日 12:00:00", "quantity": 8},
+            {"date": "2026年09月13日 12:00:00", "quantity": 8},
         ],
     }
     assert main.build_local_usage_summary(current, history) == {
-        "today": 18.0,
-        "yesterday": 5.0,
-        "delta": 13.0,
+        "today": 10.0,
+        "yesterday": 13.0,
+        "delta": -3.0,
     }
 
 
@@ -211,6 +211,26 @@ def test_build_local_usage_summary_excludes_same_day_recharge_from_midnight_bala
         ],
     }
     assert main.build_local_usage_summary(current, history)["today"] == 4.0
+
+
+def test_build_local_usage_summary_does_not_double_count_previous_day_recharge():
+    history = [
+        {
+            "date": "2026-09-16",
+            "balance": 105,
+            "recharge_records": [
+                {"date": "2026年09月16日 12:10:11", "quantity": 100},
+            ],
+        }
+    ]
+    current = {
+        "reading_time": "2026/9/17 0:00:00",
+        "balance": 2,
+        "recharge_records": [
+            {"date": "2026年09月16日 12:10:11", "quantity": 100},
+        ],
+    }
+    assert main.build_local_usage_summary(current, history)["today"] == 3.0
 
 
 def test_update_usage_history_replaces_same_day_snapshot_and_keeps_recent_days():

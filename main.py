@@ -343,10 +343,7 @@ def build_local_usage_summary(
         current_balance -= _recharge_between(
             current.get("recharge_records"), end_date, end_date + timedelta(days=1)
         )
-        recharge = _recharge_between(
-            current.get("recharge_records"), previous_date, end_date
-        )
-        return previous_balance + recharge - current_balance
+        return previous_balance - current_balance
 
     today = usage_for(current_date)
     yesterday = usage_for(current_date - timedelta(days=1))
