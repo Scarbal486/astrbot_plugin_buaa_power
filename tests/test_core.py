@@ -195,6 +195,24 @@ def test_build_local_usage_summary_uses_previous_snapshots_and_recharge():
     }
 
 
+def test_build_local_usage_summary_excludes_same_day_recharge_from_midnight_balance():
+    history = [
+        {
+            "date": "2026-09-15",
+            "balance": 9,
+            "recharge_records": [],
+        }
+    ]
+    current = {
+        "reading_time": "2026/9/16 0:00:00",
+        "balance": 105,
+        "recharge_records": [
+            {"date": "2026年09月16日 12:10:11", "quantity": 100},
+        ],
+    }
+    assert main.build_local_usage_summary(current, history)["today"] == 4.0
+
+
 def test_update_usage_history_replaces_same_day_snapshot_and_keeps_recent_days():
     history = [{"date": "2026-09-12", "balance": 30}]
     updated = main.update_usage_history(

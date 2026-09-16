@@ -337,6 +337,12 @@ def build_local_usage_summary(
             current_balance = float(current.get("balance"))
         except (TypeError, ValueError):
             return None
+        previous_balance -= _recharge_between(
+            previous.get("recharge_records"), previous_date, end_date
+        )
+        current_balance -= _recharge_between(
+            current.get("recharge_records"), end_date, end_date + timedelta(days=1)
+        )
         recharge = _recharge_between(
             current.get("recharge_records"), previous_date, end_date
         )
@@ -474,7 +480,7 @@ BASE_URL = "http://shsd.buaa.edu.cn/PubBuaa"
     PLUGIN_NAME,
     "Scarbal486",
     "北航宿舍空调与照明电量监控，显示昨日用电并支持每日余额通知和每 6 小时低余额预警。",
-    "1.0.5",
+    "1.0.6",
     "https://github.com/Scarbal486/astrbot_plugin_buaa_power",
 )
 class BuaaPowerPlugin(Star):

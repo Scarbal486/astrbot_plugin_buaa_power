@@ -1,7 +1,7 @@
 name: astrbot_plugin_buaa_power
 display_name: 宿舍电量监控
 author: Scarbal486
-version: "1.0.5"
+version: "1.0.6"
 desc: 北航宿舍空调与照明电量监控，支持昨日用电显示、每日余额通知、每 6 小时低余额预警和指令查询。
 short_desc: 推送宿舍余额和昨日用电，并每 6 小时检查低余额预警
 repo: https://github.com/Scarbal486/astrbot_plugin_buaa_power
