@@ -246,8 +246,8 @@ def test_dashboard_assets_exist_and_use_plugin_page_bridge():
         assert f'<select id="{location_id}"' in html
         assert f'<input id="{location_id}"' not in html
     assert '@filter.command("查询宿舍电量"' in main_source
-    assert 'version: "1.0.6"' in metadata
-    assert '    "1.0.6",' in main_source
+    assert 'version: "1.1.0"' in metadata
+    assert '    "1.1.0",' in main_source
     assert '"power"' not in main_source
     assert "功率" not in html
     for endpoint in ("config", "options", "status", "check"):
